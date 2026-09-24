@@ -1,1 +1,411 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Jet & Venus: Starbound Quest</title>
+  <style>
+    * {
+      box-sizing: border-box;
+    }
 
+    body {
+      margin: 0;
+      background: #10152b;
+      color: white;
+      font-family: Arial, sans-serif;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+    }
+
+    #game {
+      width: min(900px, 100%);
+      padding: 16px;
+    }
+
+    h1 {
+      text-align: center;
+      color: #ffd166;
+    }
+
+    canvas {
+      width: 100%;
+      border: 4px solid #6c63ff;
+      background: #283618;
+      image-rendering: pixelated;
+    }
+
+    #hud,
+    #battleMenu,
+    #message {
+      margin-top: 10px;
+      padding: 12px;
+      border: 2px solid #3d4270;
+      border-radius: 8px;
+      background: #191d3a;
+    }
+
+    #hud {
+      display: flex;
+      justify-content: space-between;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+
+    #battleMenu {
+      display: none;
+      text-align: center;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin: 5px;
+      border: none;
+      border-radius: 6px;
+      background: #ef476f;
+      color: white;
+      font-weight: bold;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background: #ff7090;
+    }
+
+    #message {
+      min-height: 45px;
+    }
+
+    .gold {
+      color: #ffd166;
+    }
+
+    .blue {
+      color: #8ecae6;
+    }
+  </style>
+</head>
+<body>
+  <main id="game">
+    <h1>Jet & Venus: Starbound Quest</h1>
+
+    <canvas id="world" width="800" height="450"></canvas>
+
+    <section id="hud">
+      <span><strong class="gold">Jet</strong> HP: <span id="jetHp">100</span></span>
+      <span><strong class="blue">Venus</strong> HP: <span id="venusHp">80</span></span>
+      <span>Level: <span id="level">1</span></span>
+      <span>XP: <span id="xp">0</span>/100</span>
+    </section>
+
+    <section id="message">
+      Use <strong>WASD</strong> or the arrow keys to move.
+      Walk into the glowing crystal to start a battle.
+    </section>
+
+    <section id="battleMenu">
+      <h2 id="battleTitle">Battle!</h2>
+      <p id="enemyStats"></p>
+      <button onclick="attack()">Jet Attack</button>
+      <button onclick="venusMagic()">Venus Magic</button>
+      <button onclick="healParty()">Heal Party</button>
+    </section>
+  </main>
+
+  <script>
+    const canvas = document.getElementById("world");
+    const ctx = canvas.getContext("2d");
+
+    const message = document.getElementById("message");
+    const battleMenu = document.getElementById("battleMenu");
+    const battleTitle = document.getElementById("battleTitle");
+    const enemyStats = document.getElementById("enemyStats");
+
+    const jetHpText = document.getElementById("jetHp");
+    const venusHpText = document.getElementById("venusHp");
+    const levelText = document.getElementById("level");
+    const xpText = document.getElementById("xp");
+
+    const keys = {};
+
+    const jet = {
+      x: 120,
+      y: 220,
+      size: 24,
+      speed: 4,
+      hp: 100,
+      maxHp: 100,
+      color: "#ffd166"
+    };
+
+    const venus = {
+      hp: 80,
+      maxHp: 80,
+      color: "#8ecae6"
+    };
+
+    let level = 1;
+    let xp = 0;
+    let inBattle = false;
+    let enemy = null;
+    let crystalCollected = false;
+
+    const crystal = {
+      x: 650,
+      y: 220,
+      size: 25
+    };
+
+    const trees = [
+      { x: 80, y: 80 },
+      { x: 240, y: 120 },
+      { x: 420, y: 75 },
+      { x: 720, y: 90 },
+      { x: 730, y: 350 },
+      { x: 300, y: 365 },
+      { x: 90, y: 350 }
+    ];
+
+    document.addEventListener("keydown", event => {
+      keys[event.key.toLowerCase()] = true;
+    });
+
+    document.addEventListener("keyup", event => {
+      keys[event.key.toLowerCase()] = false;
+    });
+
+    function update() {
+      if (!inBattle) {
+        moveJet();
+        checkCrystal();
+      }
+
+      updateHud();
+      draw();
+      requestAnimationFrame(update);
+    }
+
+    function moveJet() {
+      if (keys["arrowup"] || keys["w"]) jet.y -= jet.speed;
+      if (keys["arrowdown"] || keys["s"]) jet.y += jet.speed;
+      if (keys["arrowleft"] || keys["a"]) jet.x -= jet.speed;
+      if (keys["arrowright"] || keys["d"]) jet.x += jet.speed;
+
+      jet.x = Math.max(20, Math.min(canvas.width - 20, jet.x));
+      jet.y = Math.max(20, Math.min(canvas.height - 20, jet.y));
+    }
+
+    function checkCrystal() {
+      const distance = Math.hypot(jet.x - crystal.x, jet.y - crystal.y);
+
+      if (distance < 40 && !crystalCollected) {
+        crystalCollected = true;
+        startBattle();
+      }
+    }
+
+    function startBattle() {
+      inBattle = true;
+
+      enemy = {
+        name: "Shadow Slime",
+        hp: 90 + level * 15,
+        maxHp: 90 + level * 15,
+        attack: 12 + level * 2
+      };
+
+      battleTitle.textContent = `Battle against ${enemy.name}`;
+      battleMenu.style.display = "block";
+      message.textContent =
+        "A Shadow Slime appeared! Jet and Venus must work together.";
+      updateEnemyStats();
+    }
+
+    function attack() {
+      if (!inBattle) return;
+
+      const damage = 20 + level * 5;
+      enemy.hp -= damage;
+
+      message.textContent = `Jet attacks for ${damage} damage!`;
+
+      if (enemy.hp <= 0) {
+        winBattle();
+        return;
+      }
+
+      enemyTurn();
+    }
+
+    function venusMagic() {
+      if (!inBattle) return;
+
+      const damage = 28 + level * 4;
+      enemy.hp -= damage;
+
+      message.textContent =
+        `Venus casts Star Magic for ${damage} damage!`;
+
+      if (enemy.hp <= 0) {
+        winBattle();
+        return;
+      }
+
+      enemyTurn();
+    }
+
+    function healParty() {
+      if (!inBattle) return;
+
+      jet.hp = Math.min(jet.maxHp, jet.hp + 18);
+      venus.hp = Math.min(venus.maxHp, venus.hp + 18);
+
+      message.textContent = "Venus heals the party for 18 HP.";
+      enemyTurn();
+    }
+
+    function enemyTurn() {
+      const damage = enemy.attack;
+
+      if (Math.random() < 0.5) {
+        jet.hp -= damage;
+        message.textContent += ` The enemy hits Jet for ${damage} damage.`;
+      } else {
+        venus.hp -= damage;
+        message.textContent += ` The enemy hits Venus for ${damage} damage.`;
+      }
+
+      if (jet.hp <= 0 || venus.hp <= 0) {
+        gameOver();
+      }
+
+      updateEnemyStats();
+    }
+
+    function winBattle() {
+      inBattle = false;
+      battleMenu.style.display = "none";
+
+      const earnedXp = 50;
+      xp += earnedXp;
+      crystalCollected = false;
+      crystal.x = Math.random() * 650 + 70;
+      crystal.y = Math.random() * 300 + 70;
+
+      message.textContent =
+        `Victory! Jet and Venus earned ${earnedXp} XP.`;
+
+      if (xp >= 100) {
+        xp -= 100;
+        level++;
+        jet.maxHp += 20;
+        venus.maxHp += 15;
+        jet.hp = jet.maxHp;
+        venus.hp = venus.maxHp;
+
+        message.textContent += ` They reached level ${level}!`;
+      }
+    }
+
+    function gameOver() {
+      inBattle = false;
+      battleMenu.style.display = "none";
+      message.textContent =
+        "The party was defeated. Refresh the page to try again.";
+
+      jet.hp = 0;
+      venus.hp = 0;
+    }
+
+    function updateEnemyStats() {
+      if (enemy) {
+        enemyStats.textContent =
+          `${enemy.name} HP: ${Math.max(0, enemy.hp)}/${enemy.maxHp}`;
+      }
+    }
+
+    function updateHud() {
+      jetHpText.textContent = Math.max(0, jet.hp);
+      venusHpText.textContent = Math.max(0, venus.hp);
+      levelText.textContent = level;
+      xpText.textContent = xp;
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      // Grass
+      ctx.fillStyle = "#386641";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+      // Path
+      ctx.fillStyle = "#bc986a";
+      ctx.fillRect(0, 190, canvas.width, 80);
+
+      // Water
+      ctx.fillStyle = "#219ebc";
+      ctx.fillRect(350, 0, 100, 140);
+      ctx.fillRect(350, 310, 100, 140);
+
+      // Trees
+      trees.forEach(tree => {
+        ctx.fillStyle = "#5b3716";
+        ctx.fillRect(tree.x - 5, tree.y + 18, 10, 25);
+
+        ctx.fillStyle = "#1b4332";
+        ctx.beginPath();
+        ctx.arc(tree.x, tree.y, 25, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      // Crystal
+      if (!crystalCollected) {
+        ctx.fillStyle = "#e639ff";
+        ctx.beginPath();
+        ctx.moveTo(crystal.x, crystal.y - crystal.size);
+        ctx.lineTo(crystal.x + crystal.size, crystal.y);
+        ctx.lineTo(crystal.x, crystal.y + crystal.size);
+        ctx.lineTo(crystal.x - crystal.size, crystal.y);
+        ctx.closePath();
+        ctx.fill();
+
+        ctx.strokeStyle = "#ffd6ff";
+        ctx.stroke();
+      }
+
+      // Venus companion
+      ctx.fillStyle = venus.color;
+      ctx.beginPath();
+      ctx.arc(jet.x - 35, jet.y + 5, 13, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#111";
+      ctx.font = "12px Arial";
+      ctx.fillText("Venus", jet.x - 55, jet.y + 30);
+
+      // Jet
+      ctx.fillStyle = jet.color;
+      ctx.fillRect(jet.x - 12, jet.y - 12, 24, 24);
+
+      ctx.fillStyle = "#111";
+      ctx.fillText("Jet", jet.x - 12, jet.y - 20);
+
+      // Battle enemy
+      if (inBattle) {
+        ctx.fillStyle = "#7209b7";
+        ctx.beginPath();
+        ctx.arc(600, 160, 38, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#fff";
+        ctx.fillRect(585, 150, 8, 8);
+        ctx.fillRect(608, 150, 8, 8);
+      }
+    }
+
+    update();
+  </script>
+</body>
+</html>
